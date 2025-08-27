@@ -1,0 +1,7 @@
+body { font-family: Arial, sans-serif; background:#f3f4f6; margin:0; padding:0; }
+.container { height:100vh; display:flex; align-items:center; justify-content:center; }
+.card { background:white; padding:24px; border-radius:12px; width:320px; box-shadow:0 6px 18px rgba(0,0,0,0.1); }
+input { width:100%; padding:10px; margin:6px 0; border:1px solid #ddd; border-radius:6px; }
+button { width:100%; padding:10px; margin-top:8px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
+.link-btn { background:none; border:none; color:#2563eb; cursor:pointer; padding:0; text-decoration:underline; }
+.msg { margin:6px 0; font-size:14px; }
