@@ -1,53 +1,154 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcrypt');
+const express = require("express");
+const sqlite3 = require("sqlite3").verbose();
+const multer = require("multer");
+const path = require("path");
+const bcrypt = require("bcrypt");
+const session = require("express-session");
+const cors = require("cors");
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+const PORT = 3001;
 
-// Conexión a la base de datos SQLite
-const db = new sqlite3.Database('./database.db', (err) => {
-  if (err) console.error(err);
-  else console.log('Base de datos conectada');
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Servir imágenes
+app.use(session({
+    secret: "secret-key",
+    resave: false,
+    saveUninitialized: true
+}));
+
+// Configuración de subida de imágenes
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, "uploads/");
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage });
+
+// Conexión a SQLite
+const db = new sqlite3.Database("./login_db.db", (err) => {
+    if (err) console.error("Error al conectar DB:", err);
+    else console.log("Conectado a la base de datos login_db");
 });
 
+// Crear tablas si no existen
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        rol TEXT NOT NULL
+    )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        precio REAL NOT NULL,
+        imagen TEXT
+    )`);
+});
+
+// -------------------- RUTAS --------------------
 
 // Registro
-app.post('/register', async (req, res) => {
-  console.log(req.body); // Verifica lo que llega del frontend
-  const { nombre, email, password, role } = req.body;
-  if (!nombre || !email || !password || !role) {
-    return res.status(400).json({ message: 'Todos los campos son obligatorios' });
-  }
+app.post("/register", async (req, res) => {
+    const { nombre, email, password, rol } = req.body;
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+    if (!nombre || !email || !password || !rol) {
+        return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
 
-  const query = `INSERT INTO usuarios (nombre, email, password, role) VALUES (?, ?, ?, ?)`;
-  db.run(query, [nombre, email, hashedPassword, role], function(err) {
-    if (err) return res.status(500).json({ message: 'Error al registrar: ' + err.message });
-    res.json({ message: 'Usuario registrado correctamente' });
-  });
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    db.run(`INSERT INTO users (nombre, email, password, rol) VALUES (?, ?, ?, ?)`,
+        [nombre, email, hashedPassword, rol],
+        function (err) {
+            if (err) return res.status(500).json({ error: "Error al registrar usuario" });
+            res.json({ message: "Usuario registrado correctamente", userId: this.lastID });
+        });
 });
 
 // Login
-app.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Correo y contraseña requeridos' });
+app.post("/login", (req, res) => {
+    const { email, password } = req.body;
 
-  const query = `SELECT * FROM usuarios WHERE email = ?`;
-  db.get(query, [email], async (err, row) => {
-    if (err) return res.status(500).json({ message: err.message });
-    if (!row) return res.status(404).json({ message: 'Usuario no encontrado' });
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, user) => {
+        if (err) return res.status(500).json({ error: "Error en el servidor" });
+        if (!user) return res.status(400).json({ error: "Usuario no encontrado" });
 
-    const match = await bcrypt.compare(password, row.password);
-    if (!match) return res.status(401).json({ message: 'Contraseña incorrecta' });
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) return res.status(400).json({ error: "Contraseña incorrecta" });
 
-    res.json({ message: 'Login exitoso', user: { nombre: row.nombre, email: row.email, role: row.role } });
-  });
+        req.session.user = { id: user.id, rol: user.rol };
+        res.json({ message: "Login exitoso", rol: user.rol });
+    });
 });
 
-app.listen(4000, () => console.log('Servidor corriendo en http://localhost:4000'));
+// Logout
+app.post("/logout", (req, res) => {
+    req.session.destroy();
+    res.json({ message: "Sesión cerrada" });
+});
+
+// ---------------- CRUD Productos ----------------
+
+// Crear producto con imagen
+app.post("/productos", upload.single("imagen"), (req, res) => {
+    const { nombre, precio } = req.body;
+    const imagen = req.file ? `/uploads/${req.file.filename}` : null;
+
+    if (!nombre || !precio) {
+        return res.status(400).json({ error: "Nombre y precio son obligatorios" });
+    }
+
+    db.run(`INSERT INTO productos (nombre, precio, imagen) VALUES (?, ?, ?)`,
+        [nombre, precio, imagen],
+        function (err) {
+            if (err) return res.status(500).json({ error: "Error al agregar producto" });
+            res.json({ message: "Producto agregado", id: this.lastID });
+        });
+});
+
+// Obtener todos los productos
+app.get("/productos", (req, res) => {
+    db.all(`SELECT * FROM productos`, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: "Error al obtener productos" });
+        res.json(rows);
+    });
+});
+
+// Actualizar producto
+app.put("/productos/:id", upload.single("imagen"), (req, res) => {
+    const { id } = req.params;
+    const { nombre, precio } = req.body;
+    const imagen = req.file ? `/uploads/${req.file.filename}` : req.body.imagen;
+
+    db.run(`UPDATE productos SET nombre = ?, precio = ?, imagen = ? WHERE id = ?`,
+        [nombre, precio, imagen, id],
+        function (err) {
+            if (err) return res.status(500).json({ error: "Error al actualizar producto" });
+            res.json({ message: "Producto actualizado" });
+        });
+});
+
+// Eliminar producto
+app.delete("/productos/:id", (req, res) => {
+    const { id } = req.params;
+
+    db.run(`DELETE FROM productos WHERE id = ?`, [id], function (err) {
+        if (err) return res.status(500).json({ error: "Error al eliminar producto" });
+        res.json({ message: "Producto eliminado" });
+    });
+});
+
+// -------------------- INICIAR SERVER --------------------
+app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
