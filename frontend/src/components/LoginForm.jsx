@@ -18,8 +18,8 @@ export default function LoginForm({ setView }) {
       setMsg(data.message || 'Respuesta recibida');
 
       if (res.ok && data.user) {
-        if (data.user.role == 'admin') window.location.href = '/crud.html';
-        else window.location.href = '/principal.html';
+        if (data.user.role == 'admin') window.location.href = '/admin.html';
+        else window.location.href = '/usuario.html';
       }
     } catch (err) {
       setMsg('Error de conexión: ' + err.message);

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tienda Virtual</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:0; }
+header { background:#007bff; color:white; padding:15px; text-align:center; }
+header h1 { margin:0; }
+.productos-grid { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; margin:20px; }
+.producto-card { background:white; padding:15px; border-radius:10px; width:220px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,0.2); }
+.producto-card img { width:180px; height:180px; object-fit:cover; border-radius:10px; }
+.producto-card button { margin-top:10px; padding:8px; background:#28a745; color:white; border:none; border-radius:5px; cursor:pointer; }
+.producto-card button:hover { background:#218838; }
+.carrito, .form-entrega, .pedidos { background:white; padding:15px; border-radius:10px; width:90%; max-width:600px; margin:20px auto; box-shadow:0 3px 8px rgba(0,0,0,0.2); }
+.carrito ul, .pedidos ul { list-style:none; padding:0; }
+.carrito li, .pedidos li { padding:5px 0; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; }
+.carrito button, .pedidos button { padding:5px 8px; background:red; color:white; border:none; border-radius:5px; cursor:pointer; }
+.carrito button:hover, .pedidos button:hover { background:#c82333; }
+.total { text-align:right; font-weight:bold; margin-top:10px; }
+#finalizar, #guardar-entrega { margin-top:10px; padding:8px 12px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; width:100%; }
+#finalizar:hover, #guardar-entrega:hover { background:#0056b3; }
+.form-entrega input, .form-entrega textarea { width:100%; padding:8px; margin:5px 0; border-radius:5px; border:1px solid #ccc; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛍️ Tienda Virtual & Envíos 🚚</h1>
+</header>
+
+<main>
+  <div id="productos-container" class="productos-grid"></div>
+
+  <section class="carrito">
+    <h2>🛒 Carrito de Compras</h2>
+    <ul id="lista-carrito"></ul>
+    <p class="total">Total: $<span id="total">0</span></p>
+    <button id="finalizar">Finalizar Compra</button>
+  </section>
+
+  <section class="form-entrega" style="display:none;">
+    <h2>Datos de Entrega</h2>
+    <input type="text" id="nombre" placeholder="Nombre completo" required>
+    <input type="text" id="direccion" placeholder="Dirección" required>
+    <input type="text" id="telefono" placeholder="Teléfono" required>
+    <input type="email" id="correo" placeholder="Correo electrónico" required>
+    <button id="guardar-entrega">Confirmar Pedido</button>
+  </section>
+
+  <section class="pedidos">
+    <h2>📦 Mis Pedidos</h2>
+    <ul id="lista-pedidos"></ul>
+  </section>
+</main>
+
+<script>
+const API_URL = "http://localhost:4000";
+let carrito = JSON.parse(localStorage.getItem("carrito")) || [];
+
+async function cargarProductos() {
+  const res = await fetch(`${API_URL}/productos`);
+  const productos = await res.json();
+  const container = document.getElementById("productos-container");
+  container.innerHTML = "";
+  productos.forEach(prod => {
+    container.innerHTML += `
+      <div class="producto-card">
+        <img src="${API_URL}${prod.imagen}" alt="${prod.nombre}">
+        <h3>${prod.nombre}</h3>
+        <p>$${prod.precio}</p>
+        <p>Cantidad disponible: ${prod.cantidad}</p>
+        <p>${prod.descripcion}</p>
+        <input type="number" id="cantidad-${prod.id}" value="1" min="1" max="${prod.cantidad}" style="width:60px;">
+        <button onclick="agregarAlCarrito(${prod.id}, '${prod.nombre}', ${prod.precio})">Agregar al carrito</button>
+      </div>`;
+  });
+}
+
+function agregarAlCarrito(id, nombre, precio) {
+  const cantidadInput = document.getElementById(`cantidad-${id}`);
+  let cantidad = parseInt(cantidadInput.value);
+  if(cantidad>0){
+    const index = carrito.findIndex(item => item.id===id);
+    if(index>-1) carrito[index].cantidad += cantidad;
+    else carrito.push({id,nombre,precio,cantidad});
+    localStorage.setItem("carrito", JSON.stringify(carrito));
+    renderCarrito();
+  }
+}
+
+function renderCarrito() {
+  const lista = document.getElementById("lista-carrito");
+  const totalElem = document.getElementById("total");
+  lista.innerHTML = "";
+  let suma = 0;
+  carrito.forEach((item,i)=>{
+    suma += item.precio*item.cantidad;
+    const li = document.createElement("li");
+    li.innerHTML = `${item.nombre} x ${item.cantidad} - $${(item.precio*item.cantidad).toFixed(2)}
+      <button onclick="eliminarDelCarrito(${i})">❌</button>`;
+    lista.appendChild(li);
+  });
+  totalElem.textContent = suma.toFixed(2);
+}
+
+function eliminarDelCarrito(index){
+  carrito.splice(index,1);
+  localStorage.setItem("carrito", JSON.stringify(carrito));
+  renderCarrito();
+}
+
+document.getElementById("finalizar").addEventListener("click", () => {
+  if(carrito.length===0){ alert("Carrito vacío"); return; }
+  document.querySelector(".form-entrega").style.display="block";
+});
+
+document.getElementById("guardar-entrega").addEventListener("click", async () => {
+  const nombre = document.getElementById("nombre").value;
+  const direccion = document.getElementById("direccion").value;
+  const telefono = document.getElementById("telefono").value;
+  const correo = document.getElementById("correo").value;
+  if(!nombre||!direccion||!telefono||!correo){ alert("Completa todos los campos"); return; }
+
+  for(let item of carrito){
+    await fetch(`${API_URL}/pedidos`,{
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        producto_id: item.id,
+        nombre,
+        direccion,
+        telefono,
+        correo,
+        cantidad: item.cantidad
+      })
+    });
+    await fetch(`${API_URL}/comprar/${item.id}`,{
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({cantidad: item.cantidad})
+    });
+  }
+  carrito=[];
+  localStorage.removeItem("carrito");
+  renderCarrito();
+  document.querySelector(".form-entrega").style.display="none";
+  cargarPedidos();
+});
+
+async function cargarPedidos() {
+  const res = await fetch(`${API_URL}/mispedidos`);
+  const pedidos = await res.json();
+  const lista = document.getElementById("lista-pedidos");
+  lista.innerHTML = "";
+  pedidos.forEach(p=>{
+    const li = document.createElement("li");
+    li.textContent = `Pedido #${p.id} - ${p.nombre} - ${p.cantidad} unidades - Estado: ${p.estado}`;
+    lista.appendChild(li);
+  });
+}
+
+cargarProductos();
+renderCarrito();
+cargarPedidos();
+</script>
+
+</body>
+</html>

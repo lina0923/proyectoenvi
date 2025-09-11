@@ -1,0 +1,76 @@
+<form id="formAgregar" enctype="multipart/form-data">
+  <input type="text" id="nombre" placeholder="Nombre" required>
+  <input type="number" id="precio" placeholder="Precio" required>
+  <input type="number" id="cantidad" placeholder="Cantidad" required>
+  <input type="text" id="descripcion" placeholder="Descripción" required>
+  <input type="file" id="imagen" accept="image/*" required>
+  <button type="submit">Agregar</button>
+</form>
+
+<table id="tablaProductos">
+  <thead>
+    <tr>
+      <th>ID</th><th>Imagen</th><th>Nombre</th><th>Precio</th><th>Cantidad</th><th>Descripción</th><th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+const API_URL = "http://localhost:4000/productos";
+
+async function cargarProductos() {
+  const res = await fetch(API_URL);
+  const productos = await res.json();
+  const tbody = document.querySelector("#tablaProductos tbody");
+  tbody.innerHTML = "";
+  productos.forEach(p => {
+    tbody.innerHTML += `<tr>
+      <td>${p.id}</td>
+      <td><img src="http://localhost:4000${p.imagen}" width="60"></td>
+      <td>${p.nombre}</td>
+      <td>$${p.precio}</td>
+      <td>${p.cantidad}</td>
+      <td>${p.descripcion}</td>
+      <td>
+        <button onclick="editarProducto(${p.id}, '${p.nombre}', ${p.precio}, ${p.cantidad}, '${p.descripcion}')">Editar</button>
+        <button onclick="eliminarProducto(${p.id})">Eliminar</button>
+      </td>
+    </tr>`;
+  });
+}
+
+document.getElementById("formAgregar").addEventListener("submit", async e => {
+  e.preventDefault();
+  const formData = new FormData();
+  formData.append("nombre", document.getElementById("nombre").value);
+  formData.append("precio", document.getElementById("precio").value);
+  formData.append("cantidad", document.getElementById("cantidad").value);
+  formData.append("descripcion", document.getElementById("descripcion").value);
+  formData.append("imagen", document.getElementById("imagen").files[0]);
+  await fetch(API_URL, { method: "POST", body: formData });
+  e.target.reset();
+  cargarProductos();
+});
+
+async function eliminarProducto(id) {
+  await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+  cargarProductos();
+}
+
+async function editarProducto(id, nombre, precio, cantidad, descripcion) {
+  const nuevoNombre = prompt("Nombre", nombre);
+  const nuevoPrecio = prompt("Precio", precio);
+  const nuevaCantidad = prompt("Cantidad", cantidad);
+  const nuevaDescripcion = prompt("Descripción", descripcion);
+  const formData = new FormData();
+  formData.append("nombre", nuevoNombre);
+  formData.append("precio", nuevoPrecio);
+  formData.append("cantidad", nuevaCantidad);
+  formData.append("descripcion", nuevaDescripcion);
+  await fetch(`${API_URL}/${id}`, { method: "PUT", body: formData });
+  cargarProductos();
+}
+
+cargarProductos();
+</script>
