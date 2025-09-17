@@ -1,76 +1,222 @@
+<link rel="stylesheet" href="styles.css">
+
+<!-- Botón de salir -->
+<button id="btnSalir">Salir</button>
+<!-- Botón cambiar tema -->
+<button id="btnTema"> Tema Oscuro</button>
+
+
+<!-- ================== FORMULARIO PRODUCTOS ================== -->
+<h2>Agregar Producto</h2>
 <form id="formAgregar" enctype="multipart/form-data">
   <input type="text" id="nombre" placeholder="Nombre" required>
   <input type="number" id="precio" placeholder="Precio" required>
   <input type="number" id="cantidad" placeholder="Cantidad" required>
-  <input type="text" id="descripcion" placeholder="Descripción" required>
+  <input type="text" id="descripcion" placeholder="Descripcion" required>
   <input type="file" id="imagen" accept="image/*" required>
   <button type="submit">Agregar</button>
 </form>
 
+<!-- ================== TABLA PRODUCTOS ================== -->
+<h2>Productos</h2>
 <table id="tablaProductos">
   <thead>
     <tr>
-      <th>ID</th><th>Imagen</th><th>Nombre</th><th>Precio</th><th>Cantidad</th><th>Descripción</th><th>Acciones</th>
+      <th>ID</th><th>Imagen</th><th>Nombre</th><th>Precio</th>
+      <th>Cantidad</th><th>Descripcion</th><th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- ================== TABLA PEDIDOS ================== -->
+<h2>Pedidos</h2>
+<table id="tablaPedidos">
+  <thead>
+    <tr>
+      <th>ID</th><th>Cliente</th><th>Producto</th><th>Cantidad</th>
+      <th>Direccion</th><th>Telefono</th><th>Correo</th>
+      <th>Estado</th><th>Conductor</th><th>Acciones</th>
     </tr>
   </thead>
   <tbody></tbody>
 </table>
 
 <script>
-const API_URL = "http://localhost:4000/productos";
+const API_URL = "http://localhost:4000";
 
+// ---------------- BOTON SALIR ----------------
+document.getElementById("btnSalir").addEventListener("click", () => {
+  localStorage.clear();
+  window.location.href = "login.html"; 
+});
+
+// ---------------- PRODUCTOS ----------------
 async function cargarProductos() {
-  const res = await fetch(API_URL);
-  const productos = await res.json();
-  const tbody = document.querySelector("#tablaProductos tbody");
-  tbody.innerHTML = "";
-  productos.forEach(p => {
-    tbody.innerHTML += `<tr>
-      <td>${p.id}</td>
-      <td><img src="http://localhost:4000${p.imagen}" width="60"></td>
-      <td>${p.nombre}</td>
-      <td>$${p.precio}</td>
-      <td>${p.cantidad}</td>
-      <td>${p.descripcion}</td>
-      <td>
-        <button onclick="editarProducto(${p.id}, '${p.nombre}', ${p.precio}, ${p.cantidad}, '${p.descripcion}')">Editar</button>
-        <button onclick="eliminarProducto(${p.id})">Eliminar</button>
-      </td>
-    </tr>`;
-  });
+  try {
+    const res = await fetch(`${API_URL}/productos`);
+    const productos = await res.json();
+    const tbody = document.querySelector("#tablaProductos tbody");
+    tbody.innerHTML = "";
+    productos.forEach(p => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${p.id}</td>
+          <td><img src="${API_URL}${p.imagen}" width="60"></td>
+          <td>${p.nombre}</td>
+          <td>$${p.precio}</td>
+          <td>${p.cantidad}</td>
+          <td>${p.descripcion}</td>
+          <td>
+            <button onclick="editarProducto(${p.id}, '${p.nombre}', ${p.precio}, ${p.cantidad}, '${p.descripcion}')">Editar</button>
+            <button onclick="eliminarProducto(${p.id})">Eliminar</button>
+          </td>
+        </tr>`;
+    });
+  } catch (error) {
+    console.error("Error cargando productos:", error);
+  }
 }
 
+// Agregar producto
 document.getElementById("formAgregar").addEventListener("submit", async e => {
   e.preventDefault();
+  const nombre = document.getElementById("nombre").value.trim();
+  const precio = document.getElementById("precio").value;
+  const cantidad = document.getElementById("cantidad").value;
+  const descripcion = document.getElementById("descripcion").value.trim();
+  const imagen = document.getElementById("imagen").files[0];
+
+  if (!nombre || !precio || !cantidad || !descripcion || !imagen) {
+    alert("Todos los campos son obligatorios");
+    return;
+  }
+
   const formData = new FormData();
-  formData.append("nombre", document.getElementById("nombre").value);
-  formData.append("precio", document.getElementById("precio").value);
-  formData.append("cantidad", document.getElementById("cantidad").value);
-  formData.append("descripcion", document.getElementById("descripcion").value);
-  formData.append("imagen", document.getElementById("imagen").files[0]);
-  await fetch(API_URL, { method: "POST", body: formData });
+  formData.append("nombre", nombre);
+  formData.append("precio", precio);
+  formData.append("cantidad", cantidad);
+  formData.append("descripcion", descripcion);
+  formData.append("imagen", imagen);
+
+  await fetch(`${API_URL}/productos`, { method: "POST", body: formData });
   e.target.reset();
   cargarProductos();
 });
 
+// Eliminar producto
 async function eliminarProducto(id) {
-  await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+  if (!confirm("Seguro que deseas eliminar este producto?")) return;
+  await fetch(`${API_URL}/productos/${id}`, { method: "DELETE" });
   cargarProductos();
 }
 
+// Editar producto
 async function editarProducto(id, nombre, precio, cantidad, descripcion) {
-  const nuevoNombre = prompt("Nombre", nombre);
-  const nuevoPrecio = prompt("Precio", precio);
-  const nuevaCantidad = prompt("Cantidad", cantidad);
-  const nuevaDescripcion = prompt("Descripción", descripcion);
+  const nuevoNombre = prompt("Nombre:", nombre);
+  if (nuevoNombre === null) return;
+  const nuevoPrecio = prompt("Precio:", precio);
+  if (nuevoPrecio === null) return;
+  const nuevaCantidad = prompt("Cantidad:", cantidad);
+  if (nuevaCantidad === null) return;
+  const nuevaDescripcion = prompt("Descripcion:", descripcion);
+  if (nuevaDescripcion === null) return;
+
   const formData = new FormData();
   formData.append("nombre", nuevoNombre);
   formData.append("precio", nuevoPrecio);
   formData.append("cantidad", nuevaCantidad);
   formData.append("descripcion", nuevaDescripcion);
-  await fetch(`${API_URL}/${id}`, { method: "PUT", body: formData });
+
+  await fetch(`${API_URL}/productos/${id}`, { method: "PUT", body: formData });
   cargarProductos();
 }
 
+// ---------------- PEDIDOS ----------------
+async function cargarPedidos() {
+  try {
+    const res = await fetch(`${API_URL}/pedidos`);
+    const pedidos = await res.json();
+    const tbody = document.querySelector("#tablaPedidos tbody");
+    tbody.innerHTML = "";
+    pedidos.forEach(p => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${p.id}</td>
+          <td>${p.cliente}</td> <!-- Nombre del cliente -->
+          <td>${p.producto}</td> <!-- Nombre del producto -->
+          <td>${p.cantidad}</td>
+          <td>${p.direccion}</td>
+          <td>${p.telefono}</td>
+          <td>${p.correo}</td>
+          <td>${p.estado}</td>
+          <td>${p.conductor ? p.conductor : "Sin asignar"}</td>
+          <td>
+            <button onclick="actualizarEstado(${p.id}, '${p.estado}')">Cambiar Estado</button>
+            <button onclick="asignarConductor(${p.id})">Asignar Conductor</button>
+          </td>
+        </tr>`;
+    });
+  } catch (error) {
+    console.error("Error cargando pedidos:", error);
+  }
+}
+
+// Actualizar estado
+async function actualizarEstado(id, estadoActual) {
+  const nuevoEstado = prompt("Estado actual: " + estadoActual + ". Nuevo estado:", estadoActual);
+  if (!nuevoEstado) return;
+  await fetch(`${API_URL}/pedidos/${id}/estado`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ estado: nuevoEstado })
+  });
+  cargarPedidos();
+}
+
+// Asignar conductor
+async function asignarConductor(id) {
+  const conductor = prompt("Ingrese nombre del conductor:");
+  if (!conductor) return;
+  await fetch(`${API_URL}/pedidos/${id}/conductor`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conductor })
+  });
+  cargarPedidos();
+}
+
+const btnTema = document.getElementById("btnTema");
+
+// ---------------- INICIALIZAR TEMA ----------------
+function inicializarTema() {
+  const tema = localStorage.getItem("tema") || "claro"; // por defecto claro
+  if (tema === "oscuro") {
+    document.body.classList.add("tema-oscuro");
+    btnTema.textContent = " Tema Claro";
+  } else {
+    document.body.classList.remove("tema-oscuro");
+    btnTema.textContent = " Tema Oscuro";
+  }
+}
+
+// ---------------- CAMBIAR TEMA ----------------
+btnTema.addEventListener("click", () => {
+  document.body.classList.toggle("tema-oscuro");
+  if (document.body.classList.contains("tema-oscuro")) {
+    btnTema.textContent = " Tema Claro";
+    localStorage.setItem("tema", "oscuro");
+  } else {
+    btnTema.textContent = " Tema Oscuro";
+    localStorage.setItem("tema", "claro");
+  }
+});
+
+// ---------------- INICIO ----------------
+inicializarTema();
+
+
+// ---------------- INICIO ----------------
 cargarProductos();
+cargarPedidos();
 </script>

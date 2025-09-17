@@ -1,65 +1,90 @@
+// ------------------ IMPORTS ------------------
 const express = require("express");
 const mysql = require("mysql2");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const bcrypt = require("bcryptjs"); // Encriptacion
 const multer = require("multer");
 const path = require("path");
-const cors = require("cors");
 
 const app = express();
-const PORT = 4000;
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cors());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(bodyParser.json());
 
+// ------------------ MULTER ------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + path.extname(file.originalname)),
 });
 const upload = multer({ storage });
 
+// Servir carpeta uploads
+app.use("/uploads", express.static("uploads"));
+
+// ------------------ MYSQL ------------------
 const db = mysql.createConnection({
   host: "localhost",
   user: "root",
   password: "",
-  database: "proyecto_ventas"
+  database: "proyecto_ventas",
 });
 
-db.connect(err => {
-  if (err) throw err;
-  console.log("Conectado a la base de datos MySQL");
-
-  db.query(`
-    CREATE TABLE IF NOT EXISTS productos (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      nombre VARCHAR(255) NOT NULL,
-      precio DECIMAL(10,2) NOT NULL,
-      cantidad INT NOT NULL,
-      descripcion TEXT,
-      imagen VARCHAR(255)
-    );
-  `);
-
-  db.query(`
-    CREATE TABLE IF NOT EXISTS pedidos (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      producto_id INT NOT NULL,
-      nombre VARCHAR(255) NOT NULL,
-      direccion VARCHAR(255) NOT NULL,
-      telefono VARCHAR(50) NOT NULL,
-      correo VARCHAR(255) NOT NULL,
-      cantidad INT NOT NULL,
-      estado VARCHAR(50) DEFAULT 'Pendiente',
-      FOREIGN KEY (producto_id) REFERENCES productos(id)
-    );
-  `);
+db.connect((err) => {
+  if (err) console.error("Error de conexion a MySQL:", err);
+  else console.log("Conectado a MySQL");
 });
 
-// ---------------- CRUD PRODUCTOS ----------------
+// ------------------ REGISTER ------------------
+app.post("/register", (req, res) => {
+  const { nombre, email, password, role } = req.body;
+  if (!nombre || !email || !password || !role)
+    return res.status(400).json({ message: "Faltan datos para registrar" });
+
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const sql =
+    "INSERT INTO usuarios (nombre, email, password, role) VALUES (?, ?, ?, ?)";
+  db.query(sql, [nombre, email, hashedPassword, role], (err, result) => {
+    if (err) return res.status(500).json({ message: "Error al registrar usuario" });
+    res.json({ message: "Usuario registrado con exito", userId: result.insertId });
+  });
+});
+
+// ------------------ LOGIN ------------------
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ message: "Faltan datos" });
+
+  const sql = "SELECT * FROM usuarios WHERE email = ?";
+  db.query(sql, [email], (err, results) => {
+    if (err) return res.status(500).json({ message: "Error en la base de datos" });
+    if (results.length === 0) return res.status(401).json({ message: "Credenciales invalidas" });
+
+    const user = results[0];
+    const validPassword = bcrypt.compareSync(password, user.password);
+    if (!validPassword) return res.status(401).json({ message: "Credenciales invalidas" });
+
+    res.json({ message: "Login exitoso", user: { id: user.id, email: user.email, role: user.role } });
+  });
+});
+
+// ------------------ PRODUCTOS ------------------
+// Listar productos
+app.get("/productos", (req, res) => {
+  db.query("SELECT * FROM productos", (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(result);
+  });
+});
+
+// Agregar producto
 app.post("/productos", upload.single("imagen"), (req, res) => {
   const { nombre, precio, cantidad, descripcion } = req.body;
-  if (!req.file) return res.status(400).json({ error: "Se requiere imagen" });
-  const imagen = `/uploads/${req.file.filename}`;
+  const imagen = req.file ? "/uploads/" + req.file.filename : null;
+
+  if (!nombre || !precio || !cantidad)
+    return res.status(400).json({ message: "Faltan datos obligatorios" });
 
   db.query(
     "INSERT INTO productos (nombre, precio, cantidad, descripcion, imagen) VALUES (?, ?, ?, ?, ?)",
@@ -71,28 +96,33 @@ app.post("/productos", upload.single("imagen"), (req, res) => {
   );
 });
 
-app.get("/productos", (req, res) => {
-  db.query("SELECT * FROM productos", (err, rows) => {
+// Editar producto
+app.put("/productos/:id", upload.single("imagen"), (req, res) => {
+  const { nombre, precio, cantidad, descripcion } = req.body;
+  let sql =
+    "UPDATE productos SET nombre=?, precio=?, cantidad=?, descripcion=? WHERE id=?";
+  let values = [nombre, precio, cantidad, descripcion, req.params.id];
+
+  if (req.file) {
+    sql =
+      "UPDATE productos SET nombre=?, precio=?, cantidad=?, descripcion=?, imagen=? WHERE id=?";
+    values = [
+      nombre,
+      precio,
+      cantidad,
+      descripcion,
+      "/uploads/" + req.file.filename,
+      req.params.id,
+    ];
+  }
+
+  db.query(sql, values, (err) => {
     if (err) return res.status(500).json({ error: err });
-    res.json(rows);
+    res.json({ message: "Producto actualizado" });
   });
 });
 
-app.put("/productos/:id", upload.single("imagen"), (req, res) => {
-  const { id } = req.params;
-  const { nombre, precio, cantidad, descripcion } = req.body;
-  const imagen = req.file ? `/uploads/${req.file.filename}` : req.body.imagen;
-
-  db.query(
-    "UPDATE productos SET nombre=?, precio=?, cantidad=?, descripcion=?, imagen=? WHERE id=?",
-    [nombre, precio, cantidad, descripcion, imagen, id],
-    (err) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json({ message: "Producto actualizado" });
-    }
-  );
-});
-
+// Eliminar producto
 app.delete("/productos/:id", (req, res) => {
   db.query("DELETE FROM productos WHERE id=?", [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err });
@@ -100,52 +130,57 @@ app.delete("/productos/:id", (req, res) => {
   });
 });
 
-// ---------------- REGISTRAR PEDIDO ----------------
+// ------------------ PEDIDOS ------------------
+// Listar pedidos con join para mostrar nombre del producto y cliente
+app.get("/pedidos", (req, res) => {
+  const sql = `
+    SELECT pe.id, pe.nombre AS cliente, pr.nombre AS producto,
+           pe.cantidad, pe.direccion, pe.telefono, pe.correo,
+           pe.estado, pe.conductor, pe.fecha
+    FROM pedidos pe
+    LEFT JOIN productos pr ON pe.producto_id = pr.id
+  `;
+  db.query(sql, (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(result);
+  });
+});
+
+// Crear pedido
 app.post("/pedidos", (req, res) => {
-  const { producto_id, nombre, direccion, telefono, correo, cantidad } = req.body;
-  if (!producto_id || !nombre || !direccion || !telefono || !correo || !cantidad) {
-    return res.status(400).json({ error: "Todos los campos son obligatorios" });
-  }
+  const { producto_id, nombre, direccion, telefono, correo, cantidad, estado, conductor } = req.body;
 
-  db.query(
-    "SELECT cantidad FROM productos WHERE id=?",
-    [producto_id],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err });
-      if (!rows.length) return res.status(404).json({ error: "Producto no encontrado" });
+  const sql = `
+    INSERT INTO pedidos (producto_id, nombre_producto, nombre, direccion, telefono, correo, cantidad, estado, conductor) 
+    VALUES (?, (SELECT nombre FROM productos WHERE id=?), ?, ?, ?, ?, ?, ?, ?)
+  `;
 
-      const disponible = rows[0].cantidad;
-      if (disponible < cantidad) return res.status(400).json({ error: "Cantidad insuficiente" });
-
-      db.query(
-        "INSERT INTO pedidos (producto_id, nombre, direccion, telefono, correo, cantidad) VALUES (?, ?, ?, ?, ?, ?)",
-        [producto_id, nombre, direccion, telefono, correo, cantidad],
-        (err, result) => {
-          if (err) return res.status(500).json({ error: err });
-
-          db.query(
-            "UPDATE productos SET cantidad = cantidad - ? WHERE id=?",
-            [cantidad, producto_id],
-            (err2) => {
-              if (err2) return res.status(500).json({ error: err2 });
-              res.json({ message: "Pedido registrado", pedidoId: result.insertId });
-            }
-          );
-        }
-      );
-    }
-  );
+  db.query(sql, [producto_id, producto_id, nombre, direccion, telefono, correo, cantidad, estado, conductor], (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ message: "Pedido creado", id: result.insertId });
+  });
 });
 
-// ---------------- LISTAR PEDIDOS ----------------
-app.get("/mispedidos", (req, res) => {
-  db.query(
-    "SELECT p.id, pr.nombre AS producto, p.nombre, p.direccion, p.telefono, p.correo, p.cantidad, p.estado FROM pedidos p JOIN productos pr ON p.producto_id=pr.id ORDER BY p.id DESC",
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json(rows);
-    }
-  );
+// Actualizar estado del pedido
+app.put("/pedidos/:id/estado", (req, res) => {
+  const { estado } = req.body;
+  db.query("UPDATE pedidos SET estado=? WHERE id=?", [estado, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ message: "Estado actualizado" });
+  });
 });
 
-app.listen(PORT, () => console.log(`Servidor corriendo en http://localhost:${PORT}`));
+// Actualizar conductor
+app.put("/pedidos/:id/conductor", (req, res) => {
+  const { conductor } = req.body;
+  db.query("UPDATE pedidos SET conductor=? WHERE id=?", [conductor, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ message: "Conductor actualizado" });
+  });
+});
+
+// ------------------ SERVER ------------------
+const PORT = 4000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});

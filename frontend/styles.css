@@ -1,7 +1,166 @@
-body { font-family: Arial, sans-serif; background: #f5f5f5; margin:0; padding:0; }
-h1, h2 { text-align:center; color:#333; }
-.productos-grid { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; margin:20px; }
-.producto-card { background:white; padding:15px; border-radius:10px; width:200px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,0.2); }
-.producto-card img { width:150px; height:150px; object-fit:cover; border-radius:10px; }
-.producto-card button { margin-top:10px; padding:8px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; }
-.producto-card button:hover { background:#0056b3; }
+/* ===================== ESTILOS GENERALES ===================== */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #000; /* Letra negra en tema claro */
+    margin: 0;
+    padding: 20px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+h2 {
+    margin-top: 30px;
+    text-align: center;
+    color: #333;
+}
+
+/* ===================== BOTONES ===================== */
+button {
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 12px;
+    margin: 2px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* Botón salir */
+#btnSalir {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background-color: #dc3545;
+    color: #fff;
+    font-size: 14px;
+    padding: 5px 10px;
+}
+
+#btnSalir:hover {
+    background-color: #c82333;
+}
+
+/* Botón cambiar tema */
+#btnTema {
+    position: fixed;
+    top: 10px;
+    right: 90px;
+    background-color: #007bff;
+    color: #fff;
+    font-size: 14px;
+    padding: 5px 10px;
+}
+
+#btnTema:hover {
+    background-color: #0056b3;
+}
+
+/* ===================== FORMULARIO ===================== */
+form {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 500px;
+    margin: 20px auto;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+
+form input[type="text"],
+form input[type="number"],
+form input[type="file"] {
+    width: 100%;
+    padding: 8px;
+    margin: 8px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+form button[type="submit"] {
+    background-color: #28a745;
+    color: #fff;
+    width: 100%;
+}
+
+form button[type="submit"]:hover {
+    background-color: #218838;
+}
+
+/* ===================== TABLAS ===================== */
+table {
+    width: 95%;
+    max-width: 1000px;
+    margin: 20px auto;
+    border-collapse: collapse;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    background-color: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+th, td {
+    padding: 10px;
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #007bff;
+    color: #fff;
+}
+
+td img {
+    border-radius: 5px;
+}
+
+/* Botones dentro de tablas */
+table button {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+table button:hover {
+    opacity: 0.8;
+}
+
+/* ===================== TEMA OSCURO ===================== */
+body.tema-oscuro {
+    background-color: #1c1c1c;
+    color: #eee;
+}
+
+body.tema-oscuro h2 {
+    color: #fff;
+}
+
+body.tema-oscuro form {
+    background-color: #2c2c2c;
+}
+
+body.tema-oscuro input {
+    background-color: #3c3c3c;
+    color: #fff;
+    border: 1px solid #555;
+}
+
+body.tema-oscuro table {
+    background-color: #2c2c2c;
+    color: #eee;
+}
+
+body.tema-oscuro th {
+    background-color: #444;
+}
+
+body.tema-oscuro td {
+    border-bottom: 1px solid #555;
+}
+
+body.tema-oscuro #btnSalir {
+    background-color: #ff5555;
+    color: #fff;
+}
+
+body.tema-oscuro #btnTema {
+    background-color: #5555ff;
+    color: #fff;
+}
